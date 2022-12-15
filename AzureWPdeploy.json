@@ -1,5 +1,5 @@
 {
-  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
     "siteName": {
@@ -16,14 +16,7 @@
         "West US",
         "Central US",
         "North Central US",
-        "East US 2",
-        "North Europe",
-        "West Europe",
-        "Southeast Asia",
-        "East Asia",
-        "Japan West",
-        "Japan East",
-        "Brazil South"
+        "East US 2"
       ]
     },
     "sku": {
@@ -48,6 +41,13 @@
     },
     "databasePassword": {
       "type": "string"
+    },
+    "repoUrl": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string",
+      "defaultValue": "master"
     }
   },
   "variables": {
@@ -115,46 +115,28 @@
         },
         {
           "apiVersion": "2015-08-01",
-          "name": "MSDeploy",
-          "type": "extensions",
+          "name": "web",
+          "type": "sourcecontrols",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
-            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/config/web')]"
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
           ],
           "properties": {
-            "packageUri": "https://auxmktplceprod.blob.core.windows.net/packages/wordpress-4.3.1-IIS.zip",
-            "dbType": "None",
-            "setParameters": {
-              "AppPath": "[parameters('siteName')]",
-              "DbServer": "127.0.0.1",
-              "DbName": "[parameters('databaseName')]",
-              "DbUsername": "[parameters('databaseUsername')]",
-              "DbPassword": "[parameters('databasePassword')]",
-              "DbAdminUsername": "[parameters('databaseUsername')]",
-              "DbAdminPassword": "[parameters('databasePassword')]"
-            }
+            "RepoUrl": "[parameters('repoUrl')]",
+            "branch": "[parameters('branch')]",
+            "IsManualIntegration": true
           }
         },
         {
-          "apiVersion": "2015-08-01",
-          "name": "mysql",
-          "type": "siteextensions",
+          "apiVersion": "2014-06-01",
+          "name": "web",
+          "type": "config",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
-            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/extensions/MSDeploy')]"
+            "[concat('Microsoft.Web/sites/', parameters('siteName'))]"
           ],
-          "properties": { }
-        },
-        {
-          "apiVersion": "2015-08-01",
-          "name": "phpmyadmin",
-          "type": "siteextensions",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
-            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/siteextensions/mysql')]"
-          ],
-          "properties": { }
-        }
+          "properties": {
+            "phpVersion": "7.4"
+          }
+        }        
       ]
     }
   ]
