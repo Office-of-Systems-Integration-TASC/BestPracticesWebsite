@@ -1,92 +1,159 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
     "siteName": {
       "type": "string"
     },
-    "hostingPlanName": {
+    "appServicePlanName": {
       "type": "string"
     },
     "siteLocation": {
-      "type": "string"
+      "type": "string",
+      "allowedValues": [
+        "East US",
+        "South Central US",
+        "West US",
+        "Central US",
+        "North Central US",
+        "East US 2",
+        "North Europe",
+        "West Europe",
+        "Southeast Asia",
+        "East Asia",
+        "Japan West",
+        "Japan East",
+        "Brazil South"
+      ]
     },
     "sku": {
       "type": "string",
       "allowedValues": [
-        "F1",
         "B1",
-        "S1"
-      ],
-      "defaultValue": "F1"
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2",
+        "P3"
+      ]
     },
-    "repoUrl": {
+    "databaseName": {
       "type": "string"
     },
-    "branch": {
-      "type": "string",
-      "defaultValue": "master"
+    "databaseUsername": {
+      "type": "string"
+    },
+    "databasePassword": {
+      "type": "string"
     }
+  },
+  "variables": {
+    "connectionString": "[concat('Database=', parameters('databaseName'), ';Data Source=127.0.0.1;User Id=', parameters('databaseUsername'), ';Password=', parameters('databasePassword'))]"
   },
   "resources": [
     {
       "apiVersion": "2015-08-01",
-      "name": "[parameters('hostingPlanName')]",
-      "type": "Microsoft.Web/serverFarms",
+      "name": "[parameters('appServicePlanName')]",
+      "type": "Microsoft.Web/serverfarms",
       "location": "[parameters('siteLocation')]",
-      "properties": {
-        
-      },
-      "sku": {
-        "name": "[parameters('sku')]",
-        "capacity": 1
-      }
+      "sku": { "name": "[parameters('sku')]" }
     },
     {
       "apiVersion": "2015-08-01",
       "name": "[parameters('siteName')]",
-      "type": "Microsoft.Web/Sites",
+      "type": "Microsoft.Web/sites",
       "location": "[parameters('siteLocation')]",
       "dependsOn": [
-        "[concat('Microsoft.Web/serverFarms/', parameters('hostingPlanName'))]"
+        "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]"
       ],
       "properties": {
-        "name": "[parameters('siteName')]",
-        "serverFarmId": "[parameters('hostingPlanName')]",
-        "siteConfig": {
-          "localMySqlEnabled": true,
-           "appSettings": [
-            { "name": "WEBSITE_MYSQL_ENABLED", "value": "1" },
-            { "name": "WEBSITE_MYSQL_GENERAL_LOG", "value": "0" },
-            { "name": "WEBSITE_MYSQL_SLOW_QUERY_LOG", "value": "0" },
-            { "name": "WEBSITE_MYSQL_ARGUMENTS", "value": "--max_allowed_packet=16M" }
-          ]
-        }
+        "serverFarmId": "[parameters('appServicePlanName')]"
       },
       "resources": [
         {
           "apiVersion": "2015-08-01",
           "name": "web",
-          "type": "sourcecontrols",
+          "type": "config",
           "dependsOn": [
             "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
           ],
           "properties": {
-            "RepoUrl": "[parameters('repoUrl')]",
-            "branch": "[parameters('branch')]",
-            "IsManualIntegration": true
+            "alwaysOn": true,
+            "phpVersion": "5.6"
           }
         },
         {
-          "apiVersion": "2014-06-01",
-          "name": "web",
+          "apiVersion": "2015-08-01",
+          "name": "appsettings",
           "type": "config",
           "dependsOn": [
-            "[concat('Microsoft.Web/sites/', parameters('siteName'))]"
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
           ],
           "properties": {
-            "phpVersion": "7.4"
+            "WEBSITE_DISABLE_SCM_SEPARATION": "true",
+            "LOCALMYSQL_DATABASE": "[parameters('databaseName')]",
+            "LOCALMYSQL_USERNAME": "[parameters('databaseUsername')]",
+            "LOCALMYSQL_PASSWORD": "[parameters('databasePassword')]"
           }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "name": "connectionstrings",
+          "type": "config",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
+          ],
+          "properties": {
+            "[concat('MYSQLCONNSTR_', parameters('databaseName'))]": {
+              "value": "[variables('connectionString')]",
+              "type": "MySql"
+            }
+          }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "name": "MSDeploy",
+          "type": "extensions",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
+            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/config/web')]"
+          ],
+          "properties": {
+            "packageUri": "https://auxmktplceprod.blob.core.windows.net/packages/wordpress-4.3.1-IIS.zip",
+            "dbType": "None",
+            "setParameters": {
+              "AppPath": "[parameters('siteName')]",
+              "DbServer": "127.0.0.1",
+              "DbName": "[parameters('databaseName')]",
+              "DbUsername": "[parameters('databaseUsername')]",
+              "DbPassword": "[parameters('databasePassword')]",
+              "DbAdminUsername": "[parameters('databaseUsername')]",
+              "DbAdminPassword": "[parameters('databasePassword')]"
+            }
+          }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "name": "mysql",
+          "type": "siteextensions",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
+            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/extensions/MSDeploy')]"
+          ],
+          "properties": { }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "name": "phpmyadmin",
+          "type": "siteextensions",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]",
+            "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/siteextensions/mysql')]"
+          ],
+          "properties": { }
         }
       ]
     }
